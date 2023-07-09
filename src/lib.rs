@@ -80,23 +80,23 @@ mod tests {
 
     #[test]
     fn parse_os_with_unicode() {
-        let parser = UserAgentParserBuilder::new()
+        let mut parser = UserAgentParserBuilder::new()
             .unicode(true)
             .build_from_yaml("./src/core/regexes.yaml")
             .expect("Parser creation failed");
-        do_parse_os_test_with_parser(&parser)
+        do_parse_os_test_with_parser(&mut parser)
     }
 
     #[test]
     fn parse_os_without_unicode() {
-        let parser = UserAgentParserBuilder::new()
+        let mut parser = UserAgentParserBuilder::new()
             .unicode(false)
             .build_from_yaml("./src/core/regexes.yaml")
             .expect("Parser creation failed");
-        do_parse_os_test_with_parser(&parser)
+        do_parse_os_test_with_parser(&mut parser)
     }
 
-    fn do_parse_os_test_with_parser(parser: &UserAgentParser) {
+    fn do_parse_os_test_with_parser(parser: &mut UserAgentParser) {
         #[derive(Deserialize, Debug)]
         struct OSTestCases<'a> {
             test_cases: Vec<OSTestCase<'a>>,
@@ -167,11 +167,11 @@ mod tests {
 
     #[test]
     fn parse_device_with_unicode() {
-        let parser = UserAgentParserBuilder::new()
+        let mut parser = UserAgentParserBuilder::new()
             .unicode(true)
             .build_from_yaml("./src/core/regexes.yaml")
             .expect("Parser creation failed");
-        do_parse_device_test_with_parser(&parser)
+        do_parse_device_test_with_parser(&mut parser)
     }
 
     #[test]
@@ -239,22 +239,22 @@ mod tests {
 
     #[test]
     fn parse_user_agent_with_unicode() {
-        let parser = UserAgentParserBuilder::new()
+        let mut parser = UserAgentParserBuilder::new()
             .unicode(true)
             .build_from_yaml("./src/core/regexes.yaml")
             .expect("Parser creation failed");
-        do_parse_user_agent_test_with_parser(&parser)
+        do_parse_user_agent_test_with_parser(&mut parser)
     }
 
     #[test]
     fn parse_user_agent_without_unicode() {
-        let parser = UserAgentParserBuilder::new()
+        let mut parser = UserAgentParserBuilder::new()
             .unicode(false)
             .build_from_yaml("./src/core/regexes.yaml")
             .expect("Parser creation failed");
-        do_parse_user_agent_test_with_parser(&parser)
+        do_parse_user_agent_test_with_parser(&mut parser)
     }
-    fn do_parse_user_agent_test_with_parser(parser: &UserAgentParser) {
+    fn do_parse_user_agent_test_with_parser(parser: &mut UserAgentParser) {
         #[derive(Deserialize, Debug)]
         struct UserAgentTestCases<'a> {
             test_cases: Vec<UserAgentTestCase<'a>>,
@@ -330,6 +330,27 @@ mod tests {
                 && ua.major == test_case.major
                 && ua.minor == test_case.minor
                 && ua.patch == test_case.patch
+        }
+    }
+
+    #[test]
+    fn parse_in_multiple_threads() {
+        let parser = UserAgentParserBuilder::new()
+            .unicode(true)
+            .build_from_yaml("./src/core/regexes.yaml")
+            .expect("Parser creation failed");
+
+        let mut threads = Vec::new();
+
+        for _ in 0..10 {
+            let parser = parser.clone();
+            threads.push(std::thread::spawn(move || {
+                do_parse_device_test_with_parser(&parser);
+            }));
+        }
+
+        for thread in threads {
+            thread.join().unwrap();
         }
     }
 

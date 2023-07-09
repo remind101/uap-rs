@@ -125,8 +125,8 @@ fn bench_ua(c: &mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default()
-        .warm_up_time(Duration::from_secs(25))
-        .measurement_time(Duration::from_secs(180))
+        .warm_up_time(Duration::from_secs(10))
+        .measurement_time(Duration::from_secs(10))
         // degree of noise to ignore in measurements, here 1%
         .noise_threshold(0.01)
         // likelihood of noise registering as difference, here 5%
@@ -136,7 +136,7 @@ criterion_group!(
         // total number of bootstrap resamples, higher is less noisy but slower
         .nresamples(10_000)
         // total samples to collect within the set measurement time
-        .sample_size(100);
+        .sample_size(20);
     targets = bench_device, bench_os, bench_ua
 );
 criterion_main!(benches);

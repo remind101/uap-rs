@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::{Arc, RwLock};
 
 use derive_more::{Display, From};
 use regex::Regex;
@@ -30,11 +31,11 @@ pub enum Error {
 
 /// Handles the actual parsing of a user agent string by delegating to
 /// the respective `SubParser`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UserAgentParser {
-    device_matchers: Vec<device::Matcher>,
-    os_matchers: Vec<os::Matcher>,
-    user_agent_matchers: Vec<user_agent::Matcher>,
+    device_matchers: Arc<RwLock<Vec<device::Matcher>>>,
+    os_matchers: Arc<RwLock<Vec<os::Matcher>>>,
+    user_agent_matchers: Arc<RwLock<Vec<user_agent::Matcher>>>,
 }
 
 impl Parser for UserAgentParser {
@@ -49,26 +50,17 @@ impl Parser for UserAgentParser {
 
     /// Returns just the `Device` info when given a user agent string
     fn parse_device<'a>(&self, user_agent: &'a str) -> Device<'a> {
-        self.device_matchers
-            .iter()
-            .find_map(|matcher| matcher.try_parse(user_agent))
-            .unwrap_or_default()
+        Self::parse_with_sub_parser(&self.device_matchers, user_agent)
     }
 
     /// Returns just the `OS` info when given a user agent string
     fn parse_os<'a>(&self, user_agent: &'a str) -> OS<'a> {
-        self.os_matchers
-            .iter()
-            .find_map(|matcher| matcher.try_parse(user_agent))
-            .unwrap_or_default()
+        Self::parse_with_sub_parser(&self.os_matchers, user_agent)
     }
 
     /// Returns just the `UserAgent` info when given a user agent string
     fn parse_user_agent<'a>(&self, user_agent: &'a str) -> UserAgent<'a> {
-        self.user_agent_matchers
-            .iter()
-            .find_map(|matcher| matcher.try_parse(user_agent))
-            .unwrap_or_default()
+        Self::parse_with_sub_parser(&self.user_agent_matchers, user_agent)
     }
 }
 
@@ -180,10 +172,40 @@ impl UserAgentParser {
         };
 
         Ok(UserAgentParser {
-            device_matchers,
-            os_matchers,
-            user_agent_matchers,
+            device_matchers: Arc::new(RwLock::new(device_matchers)),
+            os_matchers: Arc::new(RwLock::new(os_matchers)),
+            user_agent_matchers: Arc::new(RwLock::new(user_agent_matchers)),
         })
+    }
+
+    fn parse_with_sub_parser<'a, T: Default>(
+        sub_parsers: &RwLock<Vec<impl SubParser<'a, Item = T>>>,
+        data: &'a str,
+    ) -> T {
+        let (index, result) = sub_parsers
+            .read()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .find_map(|(index, matcher)| {
+                matcher
+                    .try_parse(data)
+                    .and_then(|result| Some((index, result)))
+            })
+            .unwrap_or_default();
+
+        if index > 0 {
+            // slowly bubble the match up to the front of the list
+            // over time this will result in the most common matches being
+            // at the front of the list
+            match sub_parsers.try_write() {
+                Ok(mut sub_parsers) => {
+                    sub_parsers.swap(index, index - 1);
+                }
+                Err(_) => {}
+            }
+        }
+        result
     }
 }
 
